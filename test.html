@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI-NPC 웹소켓 테스트</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
+        #chat { height: 400px; overflow-y: scroll; background: white; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .log { margin-bottom: 10px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+        .sent { color: blue; }
+        .received { color: green; font-weight: bold; }
+        .fallback { color: red; font-weight: bold; }
+        button { padding: 10px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>AI-NPC 실시간 개입 테스트 화면</h2>
+    <div id="chat"></div>
+    
+    <button onclick="sendData(0, 2, '안녕!')">1. 정상 대화 보내기</button>
+    <button onclick="sendData(5, 12, '')">2. '조용한 피로' 보내기 (Fallback 발동)</button>
+
+    <script>
+        const chat = document.getElementById('chat');
+        // 파이썬 서버와 웹소켓 연결
+        const ws = new WebSocket('ws://localhost:8000/ws/npc/');
+
+        ws.onopen = () => { chat.innerHTML += '<div class="log">✅ 서버 연결 성공!</div>'; };
+        ws.onerror = () => { chat.innerHTML += '<div class="log" style="color:red">❌ 서버 연결 실패 (파이썬 서버가 켜져 있는지 확인하세요)</div>'; };
+
+        // 데이터를 서버로 보내는 함수
+        function sendData(fail_count, idle_time, chat_text) {
+            const data = { fail_count, idle_time, chat_text };
+            ws.send(JSON.stringify(data));
+            chat.innerHTML += `<div class="log sent">🔼 전송: ${JSON.stringify(data)}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        // 서버에서 응답이 오면 화면에 표시
+        ws.onmessage = (event) => {
+            const response = JSON.parse(event.data);
+            const isFallback = response.used_fallback ? 'fallback' : 'received';
+            chat.innerHTML += `<div class="log ${isFallback}">🔽 응답: ${response.dialogue} <br> <small>(감정: ${response.npc_emotion}, 이벤트: ${response.trigger_event}, Fallback: ${response.used_fallback})</small></div>`;
+            chat.scrollTop = chat.scrollHeight;
+        };
+    </script>
+</body>
+</html>
