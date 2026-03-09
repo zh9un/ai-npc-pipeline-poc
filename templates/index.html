@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindtrekking DTx 웹소켓 테스트 패널</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; min-width: 400px; }
+        h1 { text-align: center; color: #2c3e50; width: 100%; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; color: #34495e; font-size: 1.2rem; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; }
+        input[type="number"], input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 1rem; width: 100%; transition: background-color 0.3s; }
+        button:hover { background-color: #2980b9; }
+        .log-box { background-color: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 4px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; margin-top: 10px; border: 1px solid #1a252f; white-space: pre-wrap; }
+        .status { margin-bottom: 15px; font-weight: bold; }
+        .connected { color: #27ae60; }
+        .disconnected { color: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <h1>Mindtrekking DTx 개입 루프 테스트</h1>
+
+    <div class="container">
+        <!-- 1. 개입 생성 (Intervention) 패널 -->
+        <div class="panel">
+            <h2>1단계: AI-NPC 개입 요청 (ws/npc/)</h2>
+            <div class="status" id="npc-status">연결 상태: <span class="disconnected">연결 안됨</span></div>
+            
+            <div class="form-group">
+                <label for="session_id">세션 ID</label>
+                <input type="text" id="session_id" value="test_user_001">
+            </div>
+            <div class="form-group">
+                <label for="fail_count">실패 횟수 (fail_count)</label>
+                <input type="number" id="fail_count" value="5">
+            </div>
+            <div class="form-group">
+                <label for="idle_time">대기 시간 초 (idle_time)</label>
+                <input type="number" id="idle_time" value="12">
+            </div>
+            <div class="form-group">
+                <label for="chat_text">채팅 내용 (비워두면 Silent Fatigue)</label>
+                <input type="text" id="chat_text" placeholder="예: 너무 어려워요">
+            </div>
+            
+            <button onclick="sendNpcRequest()">개입 요청 전송</button>
+            
+            <div class="log-box" id="npc-log">로그 대기 중...</div>
+        </div>
+
+        <!-- 2. 효과 측정 (Outcome) 패널 -->
+        <div class="panel">
+            <h2>2단계: 개입 효과 측정 보고 (ws/npc/outcome/)</h2>
+            <div class="status" id="outcome-status">연결 상태: <span class="disconnected">연결 안됨</span></div>
+            <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: -5px; margin-bottom: 15px;">※ 위에서 개입을 발생시킨 후 5회 행동 결과를 가정하고 전송합니다.</p>
+            
+            <div class="form-group">
+                <label for="fail_count_post">개입 후 실패 횟수</label>
+                <input type="number" id="fail_count_post" value="2">
+            </div>
+            <div class="form-group">
+                <label for="idle_time_post">개입 후 대기 시간 (초)</label>
+                <input type="number" id="idle_time_post" value="3">
+            </div>
+            <div class="form-group">
+                <label for="chat_text_post">개입 후 채팅 내용</label>
+                <input type="text" id="chat_text_post" value="이제 다시 해볼게요!">
+            </div>
+            
+            <button onclick="sendOutcomeRequest()" style="background-color: #2ecc71;">효과 측정 결과 전송</button>
+            
+            <div class="log-box" id="outcome-log">로그 대기 중...</div>
+        </div>
+    </div>
+
+    <script>
+        // 웹소켓 객체
+        let wsNpc = null;
+        let wsOutcome = null;
+
+        // 화면 로드 시 웹소켓 연결
+        window.onload = function() {
+            connectWebSockets();
+        };
+
+        function connectWebSockets() {
+            // NPC 연결
+            wsNpc = new WebSocket('ws://' + window.location.host + '/ws/npc/');
+            
+            wsNpc.onopen = function() {
+                document.getElementById('npc-status').innerHTML = '연결 상태: <span class="connected">연결됨</span>';
+                logMsg('npc-log', '서버에 연결되었습니다. (ws/npc/)', 'system');
+            };
+            wsNpc.onclose = function() {
+                document.getElementById('npc-status').innerHTML = '연결 상태: <span class="disconnected">연결 끊김</span>';
+                logMsg('npc-log', '서버와 연결이 끊어졌습니다.', 'error');
+            };
+            wsNpc.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                logMsg('npc-log', '수신:\n' + JSON.stringify(data, null, 2), 'receive');
+            };
+
+            // Outcome 연결
+            wsOutcome = new WebSocket('ws://' + window.location.host + '/ws/npc/outcome/');
+            
+            wsOutcome.onopen = function() {
+                document.getElementById('outcome-status').innerHTML = '연결 상태: <span class="connected">연결됨</span>';
+                logMsg('outcome-log', '서버에 연결되었습니다. (ws/npc/outcome/)', 'system');
+            };
+            wsOutcome.onclose = function() {
+                document.getElementById('outcome-status').innerHTML = '연결 상태: <span class="disconnected">연결 끊김</span>';
+                logMsg('outcome-log', '서버와 연결이 끊어졌습니다.', 'error');
+            };
+            wsOutcome.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                logMsg('outcome-log', '수신:\n' + JSON.stringify(data, null, 2), 'receive');
+            };
+        }
+
+        // NPC 데이터 전송
+        function sendNpcRequest() {
+            if (wsNpc && wsNpc.readyState === WebSocket.OPEN) {
+                const data = {
+                    session_id: document.getElementById('session_id').value,
+                    fail_count: parseInt(document.getElementById('fail_count').value),
+                    idle_time: parseInt(document.getElementById('idle_time').value),
+                    chat_text: document.getElementById('chat_text').value
+                };
+                wsNpc.send(JSON.stringify(data));
+                logMsg('npc-log', '송신:\n' + JSON.stringify(data, null, 2), 'send');
+            } else {
+                alert("NPC 웹소켓이 연결되지 않았습니다.");
+            }
+        }
+
+        // Outcome 데이터 전송
+        function sendOutcomeRequest() {
+            if (wsOutcome && wsOutcome.readyState === WebSocket.OPEN) {
+                const data = {
+                    session_id: document.getElementById('session_id').value, // 같은 세션 ID 사용
+                    fail_count: parseInt(document.getElementById('fail_count_post').value),
+                    idle_time: parseInt(document.getElementById('idle_time_post').value),
+                    chat_text: document.getElementById('chat_text_post').value
+                };
+                wsOutcome.send(JSON.stringify(data));
+                logMsg('outcome-log', '송신:\n' + JSON.stringify(data, null, 2), 'send');
+            } else {
+                alert("Outcome 웹소켓이 연결되지 않았습니다.");
+            }
+        }
+
+        // 로그 출력 헬퍼
+        function logMsg(elementId, msg, type) {
+            const logBox = document.getElementById(elementId);
+            if(logBox.innerText === "로그 대기 중...") logBox.innerText = "";
+            
+            let prefix = "";
+            if(type === 'send') prefix = "📤 [SEND] ";
+            else if(type === 'receive') prefix = "📥 [RECV] ";
+            else if(type === 'system') prefix = "💡 [INFO] ";
+            else if(type === 'error') prefix = "❌ [ERROR] ";
+            
+            const time = new Date().toLocaleTimeString();
+            logBox.innerText += `[${time}] ${prefix}${msg}\n\n`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
