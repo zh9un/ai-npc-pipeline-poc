@@ -3,9 +3,9 @@ from django.utils.html import format_html
 from .models import InterventionLog, InterventionOutcome
 
 # Admin 전체 헤더와 타이틀 변경
-admin.site.site_header = "Mindtrekking DTx 관리자 패널"
-admin.site.site_title = "DTx 관리자"
-admin.site.index_title = "Mindtrekking 데이터 대시보드"
+admin.site.site_header = "DTx 치료자 모니터링 대시보드"
+admin.site.site_title = "의료진 관리 패널"
+admin.site.index_title = "환자 개입 효과(Outcome) 요약"
 
 @admin.register(InterventionLog)
 class InterventionLogAdmin(admin.ModelAdmin):

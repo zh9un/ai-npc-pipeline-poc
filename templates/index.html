@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mindtrekking DTx 웹소켓 테스트 패널</title>
+    <title>DTx DTx 웹소켓 테스트 패널</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f7fa; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 900px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
@@ -23,17 +23,17 @@
 </head>
 <body>
 
-    <h1>Mindtrekking DTx 개입 루프 테스트</h1>
+    <h1>DTx AI 개입 효과 측정 & 모니터링 대시보드</h1>
 
     <div class="container">
         <!-- 1. 개입 생성 (Intervention) 패널 -->
         <div class="panel">
-            <h2>1단계: AI-NPC 개입 요청 (ws/npc/)</h2>
+            <h2>1. 가상 개입 발생 시뮬레이터 <br><span style="font-size: 0.9rem; color: #7f8c8d; font-weight: normal;">(외부 게임 시스템 가정)</span></h2>
             <div class="status" id="npc-status">연결 상태: <span class="disconnected">연결 안됨</span></div>
             
             <div class="form-group">
-                <label for="session_id">세션 ID</label>
-                <input type="text" id="session_id" value="test_user_001">
+                <label for="session_id">세션 ID (환자 식별)</label>
+                <input type="text" id="session_id" value="patient_001">
             </div>
             <div class="form-group">
                 <label for="fail_count">실패 횟수 (fail_count)</label>
@@ -48,16 +48,16 @@
                 <input type="text" id="chat_text" placeholder="예: 너무 어려워요">
             </div>
             
-            <button onclick="sendNpcRequest()">개입 요청 전송</button>
+            <button onclick="sendNpcRequest()">개입(Intervention) 발생 시뮬레이션</button>
             
             <div class="log-box" id="npc-log">로그 대기 중...</div>
         </div>
 
         <!-- 2. 효과 측정 (Outcome) 패널 -->
         <div class="panel">
-            <h2>2단계: 개입 효과 측정 보고 (ws/npc/outcome/)</h2>
+            <h2>2. 본 시스템: 개입 효과 실시간 측정 <br><span style="font-size: 0.9rem; color: #7f8c8d; font-weight: normal;">(Closed-loop 피드백 기록)</span></h2>
             <div class="status" id="outcome-status">연결 상태: <span class="disconnected">연결 안됨</span></div>
-            <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: -5px; margin-bottom: 15px;">※ 위에서 개입을 발생시킨 후 5회 행동 결과를 가정하고 전송합니다.</p>
+            <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: -5px; margin-bottom: 15px;">※ 개입 후 5회 행동 결과를 가정하고 시스템에 보고합니다.</p>
             
             <div class="form-group">
                 <label for="fail_count_post">개입 후 실패 횟수</label>
@@ -72,9 +72,19 @@
                 <input type="text" id="chat_text_post" value="이제 다시 해볼게요!">
             </div>
             
-            <button onclick="sendOutcomeRequest()" style="background-color: #2ecc71;">효과 측정 결과 전송</button>
+            <button onclick="sendOutcomeRequest()" style="background-color: #2ecc71;">측정 결과(Outcome) DB 기록</button>
             
             <div class="log-box" id="outcome-log">로그 대기 중...</div>
+        </div>
+
+        <!-- 3. 치료자 모니터링 (Therapist Dashboard) 패널 -->
+        <div class="panel" style="min-width: 100%;">
+            <h2>3. 치료자(의료진) 실시간 모니터링 대시보드 API 호출</h2>
+            <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: -5px; margin-bottom: 15px;">※ DB에 누적된 환자(세션)의 개입 성과를 요약하고 위험 상태(Alert)를 감지합니다.</p>
+            
+            <button onclick="fetchTherapistSummary()" style="background-color: #9b59b6;">해당 환자의 세션 요약(Summary) 데이터 불러오기</button>
+            
+            <div class="log-box" id="therapist-log" style="height: 200px;">요약 대기 중...</div>
         </div>
     </div>
 
@@ -151,6 +161,29 @@
                 logMsg('outcome-log', '송신:\n' + JSON.stringify(data, null, 2), 'send');
             } else {
                 alert("Outcome 웹소켓이 연결되지 않았습니다.");
+            }
+        }
+
+        // 치료자 API 요약 데이터 호출 (HTTP GET)
+        async function fetchTherapistSummary() {
+            const sessionId = document.getElementById('session_id').value;
+            logMsg('therapist-log', `API 요청: /api/sessions/${sessionId}/summary/`, 'system');
+            
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/summary/`);
+                const data = await response.json();
+                
+                let message = `📥 [RECV] 환자(${sessionId}) 요약 데이터:\n`;
+                message += JSON.stringify(data, null, 2);
+                
+                // Alert 상태 시각적 강조
+                if(data.alert === true) {
+                    message += "\n\n🚨 [위험 감지] 연속 2회 이상 회복에 실패했습니다! (치료자 개입 필요)";
+                }
+                
+                document.getElementById('therapist-log').innerText = message;
+            } catch (error) {
+                logMsg('therapist-log', `API 호출 에러: ${error}`, 'error');
             }
         }
 
